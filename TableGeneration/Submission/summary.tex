@@ -1,0 +1,51 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+
+\title{A width-by-width banded PhaseProduct policy for full order finding}
+\author{npdeep (Magic State Labs)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Objective}
+Full order finding at $n = 2048$, $\delta = 0.01$: minimise the score $Q \times T$ of one run. The same policy is also listed on the PhaseProduct board.
+
+\section*{Starting point}
+No new table is introduced. Every table is taken unchanged from the public \texttt{forshor-submissions} repository, where the pricing engine keeps them under \texttt{evaluation/engine/data}. One table is used per arity $k$:
+\begin{itemize}
+  \item $k=2$: \texttt{PP2-b5a233d70d7b} (the engine's DP library, \texttt{personal\_tables/tables.json});
+  \item $k=3$: the $k=3$ table of archived submission \texttt{f0f15fefe959} (\texttt{sto\_archive});
+  \item $k=4$: \texttt{PP4-f16c1cd4c4f7} (DP library);
+  \item $k=5$: \texttt{PP5-082c6026c2e2} (DP library);
+  \item $k=6$: \texttt{PP6-e08be60bc8fc} (DP library);
+  \item $k=8$: \texttt{PP8-acfc5e77e96a} (DP library).
+\end{itemize}
+The credit for these tables belongs to their authors and to the organisers who assembled the library; the repository does not name the individual authors, so we cannot name them here. All evaluation points are $0$, $\infty$, $\pm 2^e$ and $\pm 2^{-e}$. The baseline we compare against is the starting policy on the board, built from the $k=3$ table of Kahanamoku-Meyer and Yao (2024).
+
+\section*{Construction}
+Our contribution is the choice of thresholds only. In the full run the phase products are called at many widths (the main $2348 \times 2348$ products and the QFT twiddles down their halving tree), and each call's cost depends only on which table the policy applies at each width it reaches. Writing $C(w)$ for the cost of a square product of width $w$, $L(w)$ for the leaf and $A_k(w)$ for the arithmetic of the arity-$k$ table with exact child width $W_k(w)$,
+\begin{align}
+  C(w) = \min\Bigl( L(w),\ \min_{k}\ \bigl[ A_k(w) + (2k-1)\, C(W_k(w)) \bigr] \Bigr),
+\end{align}
+with a rotation priced at the run's own Ross--Selinger cost (about $122.4$ T). We evaluate this recursion exactly, with $L$, $A_k$ and $W_k$ read from the pack's engine at exact widths, over every width the run reaches, and weight the top-level calls by their multiplicity in the run. The leaf is allowed only below one global width, so that every band applied on the recursion shrinks its operands. The per-width optimum is then written as bands: a new threshold wherever the best arity changes. This gives 77 bands. The table used for each $k$ was chosen by coordinate descent on the true score, restarted from random assignments; a final pass moved single thresholds by $\pm 1$ to $\pm 3$ against the full-run price.
+
+Why it is cheaper than a few wide bands: the exact child width depends on $w \bmod k$, so neighbouring widths often prefer different arities, and about 96\% of T is in the leaf products, whose number and width the thresholds decide.
+
+\section*{Prices}
+As printed by the starter pack (\texttt{starter.py price}, pack snapshot 2026-11-12) for this policy:
+\begin{itemize}
+  \item full order finding: single run 1,549,548,605,644 T, $Q$ = 13,454 qubits, score $Q \times T = 2.084763 \times 10^{16}$; main ladder \texttt{2348:6 -> 404:5 -> 90:3 -> 33:leaf}; end to end $5.981258 \times 10^{14}$ T over 386 trials;
+  \item PhaseProduct board: 10,286,132 T, $Q$ = 4,315, score $4.438466 \times 10^{10}$; ladder \texttt{2048:6 -> 354:4 -> 94:3 -> 35:leaf}; the two engines agree.
+\end{itemize}
+The starting policy on the board scores $2.568436 \times 10^{16}$ (full run) and $5.884226 \times 10^{10}$ (PhaseProduct).
+
+\section*{What is not proved}
+T counted in Python (Qualtran), not proved in Lean. Q is the live-qubit peak, a formula over the policy's widths, not proved in Lean for this policy. The local check (\texttt{./forshor check}) accepted the policy in the STO mirror at exact widths and in ForShor's build.
+
+Attempts that did not help: forcing a lower-arity first level to reduce $Q$ (a lower $Q$ but a higher score); allowing the leaf at isolated widths above the global leaf width (no gain); a hill-climb over a few bands (best 3-band policy: $k=6$ from 664, $k=4$ from 118, $k=3$ from 73, score $2.0964 \times 10^{16}$). Allowing a different table of the same arity at different widths would lower T by about 0.3\%, which the format does not permit. Under the admitted points, the tables above already reach the smallest exact child width at every width we sampled, so we did not search for new tables.
+
+The search scripts were written and run with an AI coding assistant (Claude Code), using the pack's own engine for every price.
+
+\end{document}
